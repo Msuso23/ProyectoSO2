@@ -127,6 +127,28 @@ public class SimuladorDisco {
     }
 
     /**
+     * Obtiene los próximos N bloques libres sin asignarlos.
+     * Útil para planificar las solicitudes de E/S para operaciones CREAR.
+     * 
+     * @param cantidad Cantidad de bloques libres a buscar
+     * @return Lista con los IDs de los bloques libres, o null si no hay suficientes
+     */
+    public Lista<Integer> obtenerProximosBloquesLibres(int cantidad) {
+        if (cantidad > bloquesLibres) {
+            return null;
+        }
+
+        Lista<Integer> bloquesLibresList = new Lista<>();
+        for (int i = 0; i < TOTAL_BLOQUES && bloquesLibresList.getSize() < cantidad; i++) {
+            if (!bloques[i].isOcupado()) {
+                bloquesLibresList.insertarFinal(i);
+            }
+        }
+
+        return bloquesLibresList;
+    }
+
+    /**
      * Mueve la cabeza del disco a un bloque específico
      * 
      * @return La distancia recorrida
@@ -170,6 +192,35 @@ public class SimuladorDisco {
      */
     public double getPorcentajeUso() {
         return ((double) getBloquesOcupados() / TOTAL_BLOQUES) * 100;
+    }
+
+    /**
+     * Marca un bloque como "en creación" (ocupado temporalmente durante el proceso CREAR).
+     * El bloque se muestra con el color pero aún no está completamente asignado.
+     * 
+     * @param bloqueId ID del bloque a marcar
+     * @param nombreArchivo Nombre del archivo que se está creando
+     * @param color Color del archivo
+     * @param bloqueAnterior ID del bloque anterior en la cadena (-1 si es el primero)
+     */
+    public void marcarBloqueEnCreacion(int bloqueId, String nombreArchivo, java.awt.Color color, int bloqueAnterior) {
+        if (bloqueId >= 0 && bloqueId < TOTAL_BLOQUES && !bloques[bloqueId].isOcupado()) {
+            bloques[bloqueId].asignar(nombreArchivo, color);
+            if (bloqueAnterior >= 0 && bloqueAnterior < TOTAL_BLOQUES) {
+                bloques[bloqueAnterior].setSiguienteBloque(bloqueId);
+            }
+            bloquesLibres--;
+        }
+    }
+
+    /**
+     * Verifica si un bloque está marcado como ocupado
+     */
+    public boolean estaBloqueOcupado(int bloqueId) {
+        if (bloqueId >= 0 && bloqueId < TOTAL_BLOQUES) {
+            return bloques[bloqueId].isOcupado();
+        }
+        return false;
     }
 
     /**

@@ -89,7 +89,8 @@ public class GestorArchivos {
     }
 
     /**
-     * Elimina un archivo del directorio actual.
+     * Elimina un archivo del sistema de archivos.
+     * Busca el archivo en todo el sistema, no solo en el directorio actual.
      * Solo permitido en modo administrador.
      */
     public boolean eliminarArchivo(String nombre) {
@@ -98,21 +99,56 @@ public class GestorArchivos {
             return false;
         }
 
+        // Primero buscar en el directorio actual
         Archivo archivo = directorioActual.buscarArchivo(nombre);
+        Directorio directorioContenedor = directorioActual;
+
+        // Si no está en el directorio actual, buscar en todo el sistema
         if (archivo == null) {
-            System.out.println("Error: Archivo no encontrado");
+            Object[] resultado = buscarArchivoYDirectorio(raiz, nombre);
+            if (resultado != null) {
+                archivo = (Archivo) resultado[0];
+                directorioContenedor = (Directorio) resultado[1];
+            }
+        }
+
+        if (archivo == null) {
+            System.out.println("Error: Archivo no encontrado: " + nombre);
             return false;
         }
 
         // Liberar bloques del disco
         int bloquesLiberados = disco.liberarBloques(archivo.getPrimerBloque());
 
-        // Eliminar del directorio
-        directorioActual.eliminarArchivo(nombre);
+        // Eliminar del directorio que lo contiene
+        directorioContenedor.eliminarArchivo(nombre);
 
         System.out.println("Archivo '" + nombre + "' eliminado. " +
                 bloquesLiberados + " bloques liberados");
         return true;
+    }
+
+    /**
+     * Busca un archivo y devuelve tanto el archivo como el directorio que lo
+     * contiene
+     */
+    private Object[] buscarArchivoYDirectorio(Directorio dir, String nombre) {
+        // Buscar en archivos del directorio actual
+        Archivo archivo = dir.buscarArchivo(nombre);
+        if (archivo != null) {
+            return new Object[] { archivo, dir };
+        }
+
+        // Buscar en subdirectorios
+        Lista<Directorio> subdirs = dir.getSubdirectorios();
+        for (int i = 0; i < subdirs.getSize(); i++) {
+            Object[] resultado = buscarArchivoYDirectorio(subdirs.get(i), nombre);
+            if (resultado != null) {
+                return resultado;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -164,6 +200,7 @@ public class GestorArchivos {
 
     /**
      * Renombra un archivo.
+     * Busca el archivo en todo el sistema de archivos.
      * Solo permitido en modo administrador.
      */
     public boolean renombrarArchivo(String nombreActual, String nuevoNombre) {
@@ -172,14 +209,21 @@ public class GestorArchivos {
             return false;
         }
 
+        // Primero buscar en el directorio actual
         Archivo archivo = directorioActual.buscarArchivo(nombreActual);
+
+        // Si no está, buscar en todo el sistema
         if (archivo == null) {
-            System.out.println("Error: Archivo no encontrado");
+            archivo = buscarArchivoEnSistema(nombreActual);
+        }
+
+        if (archivo == null) {
+            System.out.println("Error: Archivo no encontrado: " + nombreActual);
             return false;
         }
 
-        // Verificar que no exista otro archivo con el nuevo nombre
-        if (directorioActual.buscarArchivo(nuevoNombre) != null) {
+        // Verificar que no exista otro archivo con el nuevo nombre en todo el sistema
+        if (buscarArchivoEnSistema(nuevoNombre) != null) {
             System.out.println("Error: Ya existe un archivo con ese nombre");
             return false;
         }
@@ -191,7 +235,7 @@ public class GestorArchivos {
         }
 
         archivo.setNombre(nuevoNombre);
-        System.out.println("Archivo renombrado a '" + nuevoNombre + "'");
+        System.out.println("Archivo renombrado de '" + nombreActual + "' a '" + nuevoNombre + "'");
         return true;
     }
 

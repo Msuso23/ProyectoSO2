@@ -34,6 +34,8 @@ public class Proceso {
     private long tiempoCreacion;
     private long tiempoInicio; // Cuando empezó a ejecutar
     private long tiempoFin; // Cuando terminó
+    private int tamanoEnBloques; // Para operaciones CREAR, cuántos bloques asignar
+    private boolean operacionEjecutada; // Si ya se ejecutó la operación real
 
     public Proceso(String nombre, TipoOperacion operacion, String archivoObjetivo, String propietario) {
         this.id = ++contadorId;
@@ -44,6 +46,8 @@ public class Proceso {
         this.bloqueActual = -1;
         this.propietario = propietario;
         this.tiempoCreacion = System.currentTimeMillis();
+        this.tamanoEnBloques = 0;
+        this.operacionEjecutada = false;
     }
 
     /**
@@ -133,6 +137,22 @@ public class Proceso {
 
     public long getTiempoCreacion() {
         return tiempoCreacion;
+    }
+
+    public int getTamanoEnBloques() {
+        return tamanoEnBloques;
+    }
+
+    public void setTamanoEnBloques(int tamanoEnBloques) {
+        this.tamanoEnBloques = tamanoEnBloques;
+    }
+
+    public boolean isOperacionEjecutada() {
+        return operacionEjecutada;
+    }
+
+    public void setOperacionEjecutada(boolean operacionEjecutada) {
+        this.operacionEjecutada = operacionEjecutada;
     }
 
     public static void resetContador() {
