@@ -48,7 +48,7 @@ public class VentanaPrincipal extends javax.swing.JFrame {
     public VentanaPrincipal() {
         initComponents();
         inicializarSistema();
-        //actualizarTodo();
+        actualizarTodo();
     }
 
     /**
@@ -669,7 +669,6 @@ public class VentanaPrincipal extends javax.swing.JFrame {
         
     }//GEN-LAST:event_btnCrear10ProcesosActionPerformed
 
-
     
     private void inicializarSistema() {
         disco = new SimuladorDisco();
@@ -712,7 +711,7 @@ public class VentanaPrincipal extends javax.swing.JFrame {
             boolean exito = gestorArchivos.crearArchivo(txtNombre.getText().trim(),
                     (Integer) spnBloques.getValue());
             if (exito) {
-                //actualizarTodo();
+                actualizarTodo();
             } else {
                 JOptionPane.showMessageDialog(this, "No se pudo crear el archivo",
                         "Error", JOptionPane.ERROR_MESSAGE);
@@ -734,7 +733,7 @@ public class VentanaPrincipal extends javax.swing.JFrame {
             navegarADirectorioSeleccionado();
             boolean exito = gestorArchivos.crearDirectorio(nombre.trim());
             if (exito) {
-                //actualizarTodo();
+                actualizarTodo();
             } else {
                 JOptionPane.showMessageDialog(this, "No se pudo crear el directorio",
                         "Error", JOptionPane.ERROR_MESSAGE);
@@ -772,7 +771,7 @@ public class VentanaPrincipal extends javax.swing.JFrame {
                 gestorArchivos.eliminarDirectorio(((Directorio) objeto).getNombre());
             }
 
-            //actualizarTodo();
+            actualizarTodo();
         }
     }
 
@@ -803,7 +802,7 @@ public class VentanaPrincipal extends javax.swing.JFrame {
                 gestorArchivos.renombrarDirectorio(nombreActual, nuevoNombre.trim());
             }
 
-            //actualizarTodo();
+            actualizarTodo();
         }
     }
 
@@ -1077,7 +1076,7 @@ public class VentanaPrincipal extends javax.swing.JFrame {
             gestorProcesos.agregarSolicitudES(proceso, bloqueReal, Proceso.TipoOperacion.CREAR);
         }
 
-        //actualizarTodo();
+        actualizarTodo();
 
         if (autoSimular) {
             iniciarSimulacionAutomatica();
@@ -1136,7 +1135,7 @@ public class VentanaPrincipal extends javax.swing.JFrame {
 
         gestorProcesos.agregarSolicitudesParaArchivo(proceso, bloques, operacion);
 
-        //actualizarTodo();
+        actualizarTodo();
 
         if (autoSimular) {
             iniciarSimulacionAutomatica();
@@ -1156,7 +1155,7 @@ public class VentanaPrincipal extends javax.swing.JFrame {
             }
         }
 
-        //actualizarTodo();
+        actualizarTodo();
 
         if (procesosCreados > 0) {
             iniciarSimulacionAutomatica();
@@ -1324,7 +1323,7 @@ public class VentanaPrincipal extends javax.swing.JFrame {
             simulacionActiva = false;
             btnSimular.setText("▶ Simular");
         }
-        //actualizarTodo();
+        actualizarTodo();
     }
 
     private void guardarSistema() {
@@ -1357,7 +1356,7 @@ public class VentanaPrincipal extends javax.swing.JFrame {
             if (GestorPersistencia.cargarProcesos(gestorProcesos, ruta)) {
                 JOptionPane.showMessageDialog(this, "Procesos cargados exitosamente",
                         "Cargado", JOptionPane.INFORMATION_MESSAGE);
-                //actualizarTodo();
+                actualizarTodo();
             } else {
                 JOptionPane.showMessageDialog(this, "Error al cargar los procesos",
                         "Error", JOptionPane.ERROR_MESSAGE);
@@ -1384,7 +1383,7 @@ public class VentanaPrincipal extends javax.swing.JFrame {
             gestorProcesos.configurarSistemaArchivos(gestorArchivos, disco);
             Proceso.resetContador();
 
-            //actualizarTodo();
+            actualizarTodo();
 
             JOptionPane.showMessageDialog(this, "Sistema limpiado exitosamente.\n" +
                     "Puede comenzar de nuevo.",
@@ -1392,7 +1391,7 @@ public class VentanaPrincipal extends javax.swing.JFrame {
         }
     }
 
-    
+
 
     private void actualizarArbol() {
         nodoRaiz.removeAllChildren();
@@ -1425,8 +1424,64 @@ public class VentanaPrincipal extends javax.swing.JFrame {
         }
     }
 
-    
+    private void actualizarTablaAsignacion() {
+        modeloTabla.setRowCount(0);
 
+        Lista<Archivo> archivos = gestorArchivos.obtenerTodosLosArchivos();
+        for (int i = 0; i < archivos.getSize(); i++) {
+            Archivo archivo = archivos.get(i);
+            String cadenaBloques = obtenerCadenaBloques(archivo.getPrimerBloque());
+            modeloTabla.addRow(new Object[] {
+                    archivo.getNombre(),
+                    archivo.getTamanoEnBloques(),
+                    archivo.getPrimerBloque(),
+                    cadenaBloques,
+                    archivo.getPropietario(),
+                    archivo.getColor()
+            });
+        }
+    }
+
+    private void actualizarTablaFAT() {
+        modeloTablaFAT.setRowCount(0);
+
+        Bloque[] bloques = disco.getBloques();
+        int totalBloques = bloques.length;
+        int bloquesPorFila = 10;
+
+        for (int fila = 0; fila < totalBloques / bloquesPorFila; fila++) {
+            Object[] rowData = new Object[11];
+            rowData[0] = fila * bloquesPorFila + "-" + ((fila + 1) * bloquesPorFila - 1);
+
+            for (int col = 0; col < bloquesPorFila; col++) {
+                int bloqueIndex = fila * bloquesPorFila + col;
+                Bloque bloque = bloques[bloqueIndex];
+
+                if (!bloque.isOcupado()) {
+                    rowData[col + 1] = "LIBRE";
+                } else {
+                    int siguiente = bloque.getSiguienteBloque();
+                    if (siguiente == -1) {
+                        rowData[col + 1] = "EOF";
+                    } else {
+                        rowData[col + 1] = String.valueOf(siguiente);
+                    }
+                }
+            }
+            modeloTablaFAT.addRow(rowData);
+        }
+    }
+
+    public void actualizarTodo() {
+        actualizarArbol();
+        actualizarTablaAsignacion();
+        actualizarTablaFAT();
+        actualizarTablaProcesos();
+        actualizarTablaColaIO();
+        actualizarEstadoDisco();
+        panelDisco.repaint();
+    }
+    
     private String obtenerCadenaBloques(int primerBloque) {
         if (primerBloque < 0) {
             return "";
@@ -1506,7 +1561,6 @@ public class VentanaPrincipal extends javax.swing.JFrame {
         return sb.toString();
     }
 
-    // ========== MAIN ==========
     
     public static void main(String args[]) {
         try {
