@@ -21,24 +21,17 @@ import persistence.GestorPersistencia;
  */
 public class VentanaPrincipal extends javax.swing.JFrame {
 
-    // Componentes principales del sistema
     private SimuladorDisco disco;
     private GestorArchivos gestorArchivos;
     private GestorProcesos gestorProcesos;
     private PlanificadorDisco[] planificadores;
-
-    // Modelo de datos para componentes visuales
     private DefaultTreeModel modeloArbol;
     private DefaultMutableTreeNode nodoRaiz;
     private DefaultTableModel modeloTabla;
     private DefaultTableModel modeloTablaFAT;
     private DefaultTableModel modeloTablaProcesos;
     private DefaultTableModel modeloTablaColaIO;
-
-    // Panel personalizado para dibujar el disco
     private JPanel panelDisco;
-
-    // Timer para simulación
     private Timer timerSimulacion;
     private boolean simulacionActiva = false;
 
@@ -48,6 +41,7 @@ public class VentanaPrincipal extends javax.swing.JFrame {
     public VentanaPrincipal() {
         initComponents();
         inicializarSistema();
+        inicializarComponentesPersonalizados();
         actualizarTodo();
     }
 
@@ -595,7 +589,6 @@ public class VentanaPrincipal extends javax.swing.JFrame {
         setLocationRelativeTo(null);
     }// </editor-fold>//GEN-END:initComponents
 
-    // ========== MÉTODOS DE EVENT HANDLERS ==========
     
     private void btnModoAdminActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnModoAdminActionPerformed
         boolean esAdmin = btnModoAdmin.isSelected();
@@ -630,45 +623,207 @@ public class VentanaPrincipal extends javax.swing.JFrame {
     }//GEN-LAST:event_sliderVelocidadStateChanged
 
     private void btnGuardarActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnGuardarActionPerformed
-         
+                 guardarSistema();
     }//GEN-LAST:event_btnGuardarActionPerformed
 
     private void btnCargarActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnCargarActionPerformed
-         
+                 cargarSistema();
     }//GEN-LAST:event_btnCargarActionPerformed
 
     private void btnLimpiarActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnLimpiarActionPerformed
-       
+               limpiarSistema();
     }//GEN-LAST:event_btnLimpiarActionPerformed
 
     private void treeArchivosValueChanged(javax.swing.event.TreeSelectionEvent evt) {//GEN-FIRST:event_treeArchivosValueChanged
-        
+                mostrarInfoSeleccionado();
     }//GEN-LAST:event_treeArchivosValueChanged
 
     private void menuCrearArchivoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_menuCrearArchivoActionPerformed
-        
+                mostrarDialogoCrearArchivo();
     }//GEN-LAST:event_menuCrearArchivoActionPerformed
 
     private void menuCrearDirActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_menuCrearDirActionPerformed
-       
+               mostrarDialogoCrearDirectorio();
     }//GEN-LAST:event_menuCrearDirActionPerformed
 
     private void menuEliminarActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_menuEliminarActionPerformed
-       
+               eliminarSeleccionado();
     }//GEN-LAST:event_menuEliminarActionPerformed
 
     private void menuRenombrarActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_menuRenombrarActionPerformed
-        
+                renombrarSeleccionado();
     }//GEN-LAST:event_menuRenombrarActionPerformed
 
     private void btnCrearProcesoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnCrearProcesoActionPerformed
-        
+                mostrarDialogoCrearProceso();
     }//GEN-LAST:event_btnCrearProcesoActionPerformed
-
     private void btnCrear10ProcesosActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnCrear10ProcesosActionPerformed
-        
+                crearMultiplesProcesos(10);
     }//GEN-LAST:event_btnCrear10ProcesosActionPerformed
 
+    
+    private void dibujarDisco(Graphics g) {
+        Graphics2D g2d = (Graphics2D) g;
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        int bloquesPorFila = 20;
+        int tamBloque = 25;
+        int margen = 20;
+        int espaciado = 2;
+
+        Bloque[] bloques = disco.getBloques();
+
+        for (int i = 0; i < bloques.length; i++) {
+            int fila = i / bloquesPorFila;
+            int columna = i % bloquesPorFila;
+
+            int x = margen + columna * (tamBloque + espaciado);
+            int y = margen + fila * (tamBloque + espaciado);
+
+            Bloque bloque = bloques[i];
+
+            if (bloque.isOcupado()) {
+                g2d.setColor(bloque.getColor());
+            } else {
+                g2d.setColor(Color.LIGHT_GRAY);
+            }
+            g2d.fillRect(x, y, tamBloque, tamBloque);
+
+            g2d.setColor(Color.DARK_GRAY);
+            g2d.drawRect(x, y, tamBloque, tamBloque);
+
+            if (i % 10 == 0) {
+                g2d.setColor(Color.BLACK);
+                g2d.setFont(new Font("Arial", Font.PLAIN, 8));
+                g2d.drawString(String.valueOf(i), x + 2, y + tamBloque - 2);
+            }
+        }
+
+        int yLeyenda = margen + 6 * (tamBloque + espaciado) + 20;
+        g2d.setColor(Color.BLACK);
+        g2d.setFont(new Font("Arial", Font.PLAIN, 11));
+        g2d.drawString("□ Libre", margen, yLeyenda);
+        g2d.drawString("■ Ocupado (color = archivo)", margen + 60, yLeyenda);
+    }
+
+    private void inicializarComponentesPersonalizados() {
+        // Inicializar árbol
+        nodoRaiz = new DefaultMutableTreeNode(gestorArchivos.getRaiz());
+        modeloArbol = new DefaultTreeModel(nodoRaiz);
+        treeArchivos.setModel(modeloArbol);
+        
+        // Configurar tabla de asignación
+        String[] columnas = {"Archivo", "Bloques", "Primer Bloque", "Cadena BLK", "Propietario", "Color"};
+        modeloTabla = new DefaultTableModel(columnas, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        tableAsignacion.setModel(modeloTabla);
+        tableAsignacion.setRowHeight(25);
+        tableAsignacion.getColumnModel().getColumn(3).setPreferredWidth(150);
+        tableAsignacion.getColumnModel().getColumn(5).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value,
+                    boolean isSelected, boolean hasFocus, int row, int column) {
+                JLabel label = (JLabel) super.getTableCellRendererComponent(table, value,
+                        isSelected, hasFocus, row, column);
+                if (value instanceof Color) {
+                    label.setBackground((Color) value);
+                    label.setText("");
+                    label.setOpaque(true);
+                }
+                return label;
+            }
+        });
+        
+        // Configurar tabla FAT
+        String[] columnasFAT = new String[11];
+        columnasFAT[0] = "BLK";
+        for (int i = 0; i < 10; i++) {
+            columnasFAT[i + 1] = "+" + i;
+        }
+        modeloTablaFAT = new DefaultTableModel(columnasFAT, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        tableFAT.setModel(modeloTablaFAT);
+        tableFAT.setRowHeight(20);
+        tableFAT.getColumnModel().getColumn(0).setPreferredWidth(40);
+        for (int i = 1; i <= 10; i++) {
+            tableFAT.getColumnModel().getColumn(i).setPreferredWidth(45);
+        }
+        tableFAT.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value,
+                    boolean isSelected, boolean hasFocus, int row, int column) {
+                JLabel label = (JLabel) super.getTableCellRendererComponent(table, value,
+                        isSelected, hasFocus, row, column);
+                label.setHorizontalAlignment(SwingConstants.CENTER);
+                
+                if (column == 0) {
+                    label.setBackground(new Color(220, 220, 220));
+                    label.setFont(label.getFont().deriveFont(Font.BOLD));
+                } else if (value != null) {
+                    String val = value.toString();
+                    if ("LIBRE".equals(val)) {
+                        label.setBackground(new Color(200, 255, 200));
+                    } else if ("EOF".equals(val)) {
+                        label.setBackground(new Color(255, 255, 150));
+                    } else {
+                        label.setBackground(new Color(200, 200, 255));
+                    }
+                } else {
+                    label.setBackground(Color.WHITE);
+                }
+                label.setOpaque(true);
+                return label;
+            }
+        });
+        
+        // Configurar tabla de procesos
+        String[] columnasProcesos = {"ID", "Operación", "Archivo", "Estado"};
+        modeloTablaProcesos = new DefaultTableModel(columnasProcesos, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        tableProcesos.setModel(modeloTablaProcesos);
+        
+        // Configurar tabla de cola I/O
+        String[] columnasColaIO = {"#", "Proceso", "Bloque", "Operación"};
+        modeloTablaColaIO = new DefaultTableModel(columnasColaIO, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        tableColaIO.setModel(modeloTablaColaIO);
+        tableColaIO.setRowHeight(18);
+        tableColaIO.getColumnModel().getColumn(0).setPreferredWidth(25);
+        tableColaIO.getColumnModel().getColumn(1).setPreferredWidth(60);
+        tableColaIO.getColumnModel().getColumn(2).setPreferredWidth(50);
+        tableColaIO.getColumnModel().getColumn(3).setPreferredWidth(70);
+        
+        // Crear panel personalizado para disco
+        panelDisco = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                dibujarDisco(g);
+            }
+        };
+        panelDisco.setBackground(Color.WHITE);
+        panelDisco.setPreferredSize(new Dimension(600, 250));
+        panelDiscoContainer.add(panelDisco, BorderLayout.CENTER);
+        
+        // Configurar timer para simulación
+        timerSimulacion = new Timer(500, e -> ejecutarPasoSimulacion());
+    }
     
     private void inicializarSistema() {
         disco = new SimuladorDisco();
