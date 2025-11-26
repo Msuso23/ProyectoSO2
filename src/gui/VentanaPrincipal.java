@@ -1295,7 +1295,7 @@ public class VentanaPrincipal extends javax.swing.JFrame {
 
         gestorArchivos.setDirectorioActual(dirActualAnterior);
 
-        //actualizarArbol();
+        actualizarArbol();
     }
 
     private Directorio seleccionarDirectorioAleatorio() {
@@ -1315,6 +1315,181 @@ public class VentanaPrincipal extends javax.swing.JFrame {
             timerSimulacion.start();
             btnSimular.setText("⏹ Detener");
         }
+    }
+
+    private void ejecutarPasoSimulacion() {
+        SolicitudIO solicitud = gestorProcesos.procesarSiguienteSolicitud();
+        if (solicitud == null && simulacionActiva) {
+            timerSimulacion.stop();
+            simulacionActiva = false;
+            btnSimular.setText("▶ Simular");
+        }
+        //actualizarTodo();
+    }
+
+    private void guardarSistema() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Guardar Procesos");
+
+        if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            String ruta = fileChooser.getSelectedFile().getAbsolutePath();
+            if (!ruta.endsWith(".csv")) {
+                ruta += ".csv";
+            }
+
+            if (GestorPersistencia.guardarProcesos(gestorProcesos, ruta)) {
+                JOptionPane.showMessageDialog(this, "Procesos guardados exitosamente",
+                        "Guardado", JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(this, "Error al guardar los procesos",
+                        "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void cargarSistema() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Cargar Procesos");
+
+        if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            String ruta = fileChooser.getSelectedFile().getAbsolutePath();
+
+            if (GestorPersistencia.cargarProcesos(gestorProcesos, ruta)) {
+                JOptionPane.showMessageDialog(this, "Procesos cargados exitosamente",
+                        "Cargado", JOptionPane.INFORMATION_MESSAGE);
+                //actualizarTodo();
+            } else {
+                JOptionPane.showMessageDialog(this, "Error al cargar los procesos",
+                        "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void limpiarSistema() {
+        int confirmacion = JOptionPane.showConfirmDialog(this,
+                "¿Está seguro de que desea limpiar todo el sistema?\n" +
+                        "Se eliminarán todos los archivos, directorios y procesos.",
+                "Confirmar Limpieza", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+
+        if (confirmacion == JOptionPane.YES_OPTION) {
+            if (simulacionActiva) {
+                timerSimulacion.stop();
+                simulacionActiva = false;
+                btnSimular.setText("▶ Simular");
+            }
+
+            disco.reiniciar();
+            gestorArchivos = new GestorArchivos(disco);
+            gestorProcesos = new GestorProcesos();
+            gestorProcesos.configurarSistemaArchivos(gestorArchivos, disco);
+            Proceso.resetContador();
+
+            //actualizarTodo();
+
+            JOptionPane.showMessageDialog(this, "Sistema limpiado exitosamente.\n" +
+                    "Puede comenzar de nuevo.",
+                    "Limpieza Completa", JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    
+
+    private void actualizarArbol() {
+        nodoRaiz.removeAllChildren();
+        nodoRaiz.setUserObject(gestorArchivos.getRaiz());
+        construirArbolRecursivo(nodoRaiz, gestorArchivos.getRaiz());
+        modeloArbol.reload();
+        expandirArbol();
+    }
+
+    private void construirArbolRecursivo(DefaultMutableTreeNode nodoPadre, Directorio dir) {
+        Lista<Directorio> subdirs = dir.getSubdirectorios();
+        for (int i = 0; i < subdirs.getSize(); i++) {
+            Directorio subdir = subdirs.get(i);
+            DefaultMutableTreeNode nodoDir = new DefaultMutableTreeNode(subdir);
+            nodoPadre.add(nodoDir);
+            construirArbolRecursivo(nodoDir, subdir);
+        }
+
+        Lista<Archivo> archivos = dir.getArchivos();
+        for (int i = 0; i < archivos.getSize(); i++) {
+            Archivo archivo = archivos.get(i);
+            DefaultMutableTreeNode nodoArchivo = new DefaultMutableTreeNode(archivo);
+            nodoPadre.add(nodoArchivo);
+        }
+    }
+
+    private void expandirArbol() {
+        for (int i = 0; i < treeArchivos.getRowCount(); i++) {
+            treeArchivos.expandRow(i);
+        }
+    }
+
+    
+
+    private String obtenerCadenaBloques(int primerBloque) {
+        if (primerBloque < 0) {
+            return "";
+        }
+
+        Lista<Integer> bloques = disco.obtenerCadenaBloquesArchivo(primerBloque);
+        if (bloques == null || bloques.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < bloques.getSize(); i++) {
+            if (i > 0) {
+                sb.append(" → ");
+            }
+            sb.append(bloques.get(i));
+        }
+        return sb.toString();
+    }
+
+    private void actualizarTablaProcesos() {
+        modeloTablaProcesos.setRowCount(0);
+
+        Lista<Proceso> procesos = gestorProcesos.getProcesos();
+        for (int i = 0; i < procesos.getSize(); i++) {
+            Proceso p = procesos.get(i);
+            modeloTablaProcesos.addRow(new Object[] {
+                    "P" + p.getId(),
+                    p.getOperacion(),
+                    p.getArchivoObjetivo(),
+                    p.getEstado()
+            });
+        }
+    }
+
+    private void actualizarTablaColaIO() {
+        modeloTablaColaIO.setRowCount(0);
+
+        Lista<SolicitudIO> solicitudes = gestorProcesos.obtenerSolicitudesOrdenadas();
+        for (int i = 0; i < solicitudes.getSize(); i++) {
+            SolicitudIO s = solicitudes.get(i);
+            modeloTablaColaIO.addRow(new Object[] {
+                    (i + 1),
+                    "P" + s.getProceso().getId(),
+                    "BLK " + s.getBloqueDestino(),
+                    s.getTipoOperacion()
+            });
+        }
+    }
+
+    private void actualizarEstadoDisco() {
+        int ocupados = disco.getBloquesOcupados();
+        int total = SimuladorDisco.TOTAL_BLOQUES;
+        double porcentaje = disco.getPorcentajeUso();
+
+        lblEstadoDisco.setText(String.format("Disco: %d/%d bloques ocupados (%.1f%%)",
+                ocupados, total, porcentaje));
+        lblCabezaDisco.setText("Cabeza en bloque: " + gestorProcesos.getPosicionCabeza());
+
+        lblSolicitudesAtendidas.setText("Solicitudes atendidas: " + gestorProcesos.getTotalSolicitudesAtendidas());
+        lblMovimientosTotales.setText("Movimientos totales: " + gestorProcesos.getMovimientosTotales());
+        lblPromedioMovimientos.setText(String.format("Promedio mov/solicitud: %.2f", gestorProcesos.getPromedioMovimientos()));
+        lblSolicitudesPendientes.setText("Solicitudes pendientes: " + gestorProcesos.getCantidadSolicitudesPendientes());
     }
 
     private String bloquesToString(Lista<Integer> bloques) {
