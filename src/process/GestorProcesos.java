@@ -5,6 +5,7 @@ import EDD.Queue;
 import models.Proceso;
 import models.SolicitudIO;
 import models.Archivo;
+import models.Directorio;
 import schedulers.PlanificadorDisco;
 import schedulers.FIFO;
 import filesystem.GestorArchivos;
@@ -151,7 +152,19 @@ public class GestorProcesos {
             case CREAR:
                 int tamano = proceso.getTamanoEnBloques();
                 if (tamano > 0) {
+                    // Guardar directorio actual
+                    Directorio dirActualAnterior = gestorArchivos.getDirectorioActual();
+
+                    // Cambiar al directorio destino si está especificado
+                    Directorio dirDestino = proceso.getDirectorioDestino();
+                    if (dirDestino != null) {
+                        gestorArchivos.setDirectorioActual(dirDestino);
+                    }
+
                     gestorArchivos.crearArchivo(nombreArchivo, tamano);
+
+                    // Restaurar directorio actual
+                    gestorArchivos.setDirectorioActual(dirActualAnterior);
                 }
                 break;
 
@@ -351,6 +364,23 @@ public class GestorProcesos {
         Proceso.resetContador();
         SolicitudIO.resetContador();
         reiniciarEstadisticas();
+    }
+
+    /**
+     * Agrega un proceso directamente (usado para cargar desde archivo)
+     */
+    public void agregarProcesoDirecto(Proceso proceso) {
+        procesos.insertarFinal(proceso);
+    }
+
+    /**
+     * Agrega una solicitud ya atendida (usado para cargar historial desde archivo)
+     */
+    public void agregarSolicitudAtendidaDirecta(Proceso proceso, int bloqueDestino,
+            Proceso.TipoOperacion tipoOperacion) {
+        SolicitudIO solicitud = new SolicitudIO(proceso, bloqueDestino, tipoOperacion);
+        solicitud.setAtendida(true);
+        solicitudesAtendidas.insertarFinal(solicitud);
     }
 
     // Getters

@@ -39,7 +39,12 @@ public class SCAN implements PlanificadorDisco {
             SolicitudIO solicitud = cola.get(i);
             int bloque = solicitud.getBloqueDestino();
 
-            boolean enDireccionCorrecta = direccionAscendente ? (bloque >= posicionCabeza) : (bloque <= posicionCabeza);
+            boolean enDireccionCorrecta;
+            if (direccionAscendente) {
+                enDireccionCorrecta = (bloque >= posicionCabeza);
+            } else {
+                enDireccionCorrecta = (bloque <= posicionCabeza);
+            }
 
             if (enDireccionCorrecta) {
                 int distancia = Math.abs(bloque - posicionCabeza);
@@ -53,16 +58,26 @@ public class SCAN implements PlanificadorDisco {
         // Si no hay solicitudes en la dirección actual, cambiar dirección
         if (seleccionada == null) {
             direccionAscendente = !direccionAscendente;
+            mejorDistancia = Integer.MAX_VALUE; // Reiniciar para la nueva búsqueda
 
-            // Buscar en la nueva dirección
+            // Buscar en la nueva dirección (ahora la más cercana en dirección opuesta)
             for (int i = 0; i < cola.getSize(); i++) {
                 SolicitudIO solicitud = cola.get(i);
                 int bloque = solicitud.getBloqueDestino();
-                int distancia = Math.abs(bloque - posicionCabeza);
 
-                if (distancia < mejorDistancia) {
-                    mejorDistancia = distancia;
-                    seleccionada = solicitud;
+                boolean enDireccionCorrecta;
+                if (direccionAscendente) {
+                    enDireccionCorrecta = (bloque >= posicionCabeza);
+                } else {
+                    enDireccionCorrecta = (bloque <= posicionCabeza);
+                }
+
+                if (enDireccionCorrecta) {
+                    int distancia = Math.abs(bloque - posicionCabeza);
+                    if (distancia < mejorDistancia) {
+                        mejorDistancia = distancia;
+                        seleccionada = solicitud;
+                    }
                 }
             }
         }
@@ -111,22 +126,37 @@ public class SCAN implements PlanificadorDisco {
      * @param ascendente true para orden ascendente, false para descendente
      */
     private void ordenarPorBloque(Lista<SolicitudIO> lista, boolean ascendente) {
-        for (int i = 0; i < lista.getSize() - 1; i++) {
-            for (int j = 0; j < lista.getSize() - 1 - i; j++) {
-                SolicitudIO actual = lista.get(j);
-                SolicitudIO siguiente = lista.get(j + 1);
+        // Crear una copia ordenada
+        Lista<SolicitudIO> copia = new Lista<>();
+        for (int i = 0; i < lista.getSize(); i++) {
+            copia.insertarFinal(lista.get(i));
+        }
 
-                boolean debeIntercambiar = ascendente ? (actual.getBloqueDestino() > siguiente.getBloqueDestino())
+        // Bubble sort en la copia usando índices
+        int n = copia.getSize();
+        for (int i = 0; i < n - 1; i++) {
+            for (int j = 0; j < n - 1 - i; j++) {
+                SolicitudIO actual = copia.get(j);
+                SolicitudIO siguiente = copia.get(j + 1);
+
+                boolean debeIntercambiar = ascendente
+                        ? (actual.getBloqueDestino() > siguiente.getBloqueDestino())
                         : (actual.getBloqueDestino() < siguiente.getBloqueDestino());
 
                 if (debeIntercambiar) {
-                    // Intercambiar usando remove e insert
-                    lista.remove(j);
-                    lista.insertarPosicion(j, siguiente);
-                    lista.remove(j + 1);
-                    lista.insertarPosicion(j + 1, actual);
+                    // Intercambiar: remover ambos y reinsertar en orden correcto
+                    copia.remove(j + 1);
+                    copia.remove(j);
+                    copia.insertarPosicion(j, siguiente);
+                    copia.insertarPosicion(j + 1, actual);
                 }
             }
+        }
+
+        // Vaciar lista original y copiar los ordenados
+        lista.vaciar();
+        for (int i = 0; i < copia.getSize(); i++) {
+            lista.insertarFinal(copia.get(i));
         }
     }
 

@@ -93,19 +93,33 @@ public class CSCAN implements PlanificadorDisco {
      * Ordena una lista de solicitudes de menor a mayor por bloque (bubble sort)
      */
     private void ordenarAscendente(Lista<SolicitudIO> lista) {
-        for (int i = 0; i < lista.getSize() - 1; i++) {
-            for (int j = 0; j < lista.getSize() - 1 - i; j++) {
-                SolicitudIO actual = lista.get(j);
-                SolicitudIO siguiente = lista.get(j + 1);
+        // Crear una copia ordenada
+        Lista<SolicitudIO> copia = new Lista<>();
+        for (int i = 0; i < lista.getSize(); i++) {
+            copia.insertarFinal(lista.get(i));
+        }
+
+        // Bubble sort en la copia
+        int n = copia.getSize();
+        for (int i = 0; i < n - 1; i++) {
+            for (int j = 0; j < n - 1 - i; j++) {
+                SolicitudIO actual = copia.get(j);
+                SolicitudIO siguiente = copia.get(j + 1);
 
                 if (actual.getBloqueDestino() > siguiente.getBloqueDestino()) {
-                    // Intercambiar
-                    lista.remove(j);
-                    lista.insertarPosicion(j, siguiente);
-                    lista.remove(j + 1);
-                    lista.insertarPosicion(j + 1, actual);
+                    // Intercambiar: remover ambos y reinsertar en orden correcto
+                    copia.remove(j + 1);
+                    copia.remove(j);
+                    copia.insertarPosicion(j, siguiente);
+                    copia.insertarPosicion(j + 1, actual);
                 }
             }
+        }
+
+        // Vaciar lista original y copiar los ordenados
+        lista.vaciar();
+        for (int i = 0; i < copia.getSize(); i++) {
+            lista.insertarFinal(copia.get(i));
         }
     }
 

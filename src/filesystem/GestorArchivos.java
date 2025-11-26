@@ -322,6 +322,26 @@ public class GestorArchivos {
     }
 
     /**
+     * Obtiene todos los directorios del sistema recursivamente (incluyendo root)
+     */
+    public Lista<Directorio> obtenerTodosLosDirectorios() {
+        Lista<Directorio> todos = new Lista<>();
+        obtenerDirectoriosRecursivo(raiz, todos);
+        return todos;
+    }
+
+    private void obtenerDirectoriosRecursivo(Directorio dir, Lista<Directorio> lista) {
+        // Agregar el directorio actual
+        lista.insertarFinal(dir);
+
+        // Recorrer subdirectorios
+        Lista<Directorio> subdirs = dir.getSubdirectorios();
+        for (int i = 0; i < subdirs.getSize(); i++) {
+            obtenerDirectoriosRecursivo(subdirs.get(i), lista);
+        }
+    }
+
+    /**
      * Busca un archivo en todo el sistema de archivos
      */
     public Archivo buscarArchivoEnSistema(String nombre) {

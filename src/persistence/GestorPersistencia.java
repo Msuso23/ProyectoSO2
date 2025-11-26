@@ -1,133 +1,149 @@
 package persistence;
 
 import EDD.Lista;
-import models.Archivo;
-import models.Bloque;
-import models.Directorio;
-import filesystem.SimuladorDisco;
-import filesystem.GestorArchivos;
+import models.Proceso;
+import models.SolicitudIO;
+import process.GestorProcesos;
 import java.io.*;
 
 /**
- * Gestor de persistencia para guardar y cargar el estado del sistema de
- * archivos.
- * Utiliza formato de texto plano para almacenar la información.
+ * Gestor de persistencia para guardar y cargar los procesos del sistema.
+ * Utiliza formato CSV para almacenar la información.
  */
 public class GestorPersistencia {
 
-    private static final String ARCHIVO_SISTEMA = "sistema_archivos.dat";
-    private static final String SEPARADOR = "|||";
+    private static final String ARCHIVO_PROCESOS = "procesos.csv";
+    private static final String SEPARADOR = ",";
     private static final String FIN_SECCION = "###FIN###";
 
     /**
-     * Guarda el estado completo del sistema en un archivo
+     * Guarda los procesos y solicitudes en un archivo CSV
      */
-    public static boolean guardarSistema(GestorArchivos gestor, String rutaArchivo) {
+    public static boolean guardarProcesos(GestorProcesos gestorProcesos, String rutaArchivo) {
         try (PrintWriter writer = new PrintWriter(new FileWriter(rutaArchivo))) {
-            SimuladorDisco disco = gestor.getDisco();
 
-            // Guardar información del disco
-            writer.println("=== DISCO ===");
-            writer.println(disco.getCabezaActual());
+            // Guardar información general
+            writer.println("=== INFO ===");
+            writer.println("posicionCabeza," + gestorProcesos.getPosicionCabeza());
+            writer.println("totalSolicitudesAtendidas," + gestorProcesos.getTotalSolicitudesAtendidas());
+            writer.println("movimientosTotales," + gestorProcesos.getMovimientosTotales());
+            writer.println(FIN_SECCION);
 
-            // Guardar estado de cada bloque
-            writer.println("=== BLOQUES ===");
-            Bloque[] bloques = disco.getBloques();
-            for (int i = 0; i < bloques.length; i++) {
-                Bloque b = bloques[i];
-                // Formato: id|ocupado|siguiente|archivoAsociado|colorR|colorG|colorB
-                String linea = b.getId() + SEPARADOR +
-                        b.isOcupado() + SEPARADOR +
-                        b.getSiguienteBloque() + SEPARADOR +
-                        (b.getArchivoAsociado() != null ? b.getArchivoAsociado() : "null") + SEPARADOR +
-                        b.getColor().getRed() + SEPARADOR +
-                        b.getColor().getGreen() + SEPARADOR +
-                        b.getColor().getBlue();
+            // Guardar procesos
+            writer.println("=== PROCESOS ===");
+            writer.println("id,nombre,estado,operacion,archivoObjetivo,propietario,tamanoEnBloques,operacionEjecutada");
+
+            Lista<Proceso> procesos = gestorProcesos.getProcesos();
+            for (int i = 0; i < procesos.getSize(); i++) {
+                Proceso p = procesos.get(i);
+                // Guardar TODOS los procesos como BLOQUEADO y operacionEjecutada=false
+                // para que puedan re-ejecutarse al cargar
+                String linea = p.getId() + SEPARADOR +
+                        escaparCSV(p.getNombre()) + SEPARADOR +
+                        "BLOQUEADO" + SEPARADOR +
+                        p.getOperacion().name() + SEPARADOR +
+                        escaparCSV(p.getArchivoObjetivo()) + SEPARADOR +
+                        escaparCSV(p.getPropietario()) + SEPARADOR +
+                        p.getTamanoEnBloques() + SEPARADOR +
+                        "false";
                 writer.println(linea);
             }
             writer.println(FIN_SECCION);
 
-            // Guardar estructura de directorios y archivos
-            writer.println("=== DIRECTORIOS ===");
-            guardarDirectorioRecursivo(writer, gestor.getRaiz(), "");
+            // Guardar TODAS las solicitudes como pendientes (para re-ejecutar)
+            // Combina pendientes + atendidas en una sola sección
+            writer.println("=== SOLICITUDES_PENDIENTES ===");
+            writer.println("id,procesoId,bloqueDestino,tipoOperacion,atendida");
+
+            // Primero las pendientes actuales
+            Lista<SolicitudIO> pendientes = gestorProcesos.getSolicitudesPendientes();
+            for (int i = 0; i < pendientes.getSize(); i++) {
+                SolicitudIO s = pendientes.get(i);
+                String linea = s.getId() + SEPARADOR +
+                        s.getProceso().getId() + SEPARADOR +
+                        s.getBloqueDestino() + SEPARADOR +
+                        s.getTipoOperacion().name() + SEPARADOR +
+                        "false";
+                writer.println(linea);
+            }
+
+            // Luego las atendidas (también como pendientes para re-ejecutar)
+            Lista<SolicitudIO> atendidas = gestorProcesos.getSolicitudesAtendidas();
+            for (int i = 0; i < atendidas.getSize(); i++) {
+                SolicitudIO s = atendidas.get(i);
+                String linea = s.getId() + SEPARADOR +
+                        s.getProceso().getId() + SEPARADOR +
+                        s.getBloqueDestino() + SEPARADOR +
+                        s.getTipoOperacion().name() + SEPARADOR +
+                        "false";
+                writer.println(linea);
+            }
             writer.println(FIN_SECCION);
 
-            writer.println("=== FIN SISTEMA ===");
+            // Sección vacía de atendidas (ya no se usa pero mantener compatibilidad)
+            writer.println("=== SOLICITUDES_ATENDIDAS ===");
+            writer.println("id,procesoId,bloqueDestino,tipoOperacion,atendida");
+            writer.println(FIN_SECCION);
+
+            writer.println("=== FIN PROCESOS ===");
             return true;
 
         } catch (IOException e) {
-            System.err.println("Error al guardar el sistema: " + e.getMessage());
+            System.err.println("Error al guardar procesos: " + e.getMessage());
             return false;
         }
     }
 
     /**
-     * Guarda un directorio y todo su contenido recursivamente
+     * Escapa un valor para CSV (maneja comas y comillas)
      */
-    private static void guardarDirectorioRecursivo(PrintWriter writer, Directorio dir, String ruta) {
-        String rutaActual = ruta.isEmpty() ? dir.getNombre() : ruta + "/" + dir.getNombre();
-
-        // Guardar info del directorio
-        // Formato: DIR|ruta|nombre|propietario
-        writer.println("DIR" + SEPARADOR + rutaActual + SEPARADOR +
-                dir.getNombre() + SEPARADOR + dir.getPropietario());
-
-        // Guardar archivos del directorio
-        Lista<Archivo> archivos = dir.getArchivos();
-        for (int i = 0; i < archivos.getSize(); i++) {
-            Archivo a = archivos.get(i);
-            // Formato:
-            // FILE|ruta|nombre|tamaño|primerBloque|propietario|esPublico|colorR|colorG|colorB
-            writer.println("FILE" + SEPARADOR + rutaActual + SEPARADOR +
-                    a.getNombre() + SEPARADOR +
-                    a.getTamanoEnBloques() + SEPARADOR +
-                    a.getPrimerBloque() + SEPARADOR +
-                    a.getPropietario() + SEPARADOR +
-                    a.isEsPublico() + SEPARADOR +
-                    a.getColor().getRed() + SEPARADOR +
-                    a.getColor().getGreen() + SEPARADOR +
-                    a.getColor().getBlue());
+    private static String escaparCSV(String valor) {
+        if (valor == null)
+            return "";
+        if (valor.contains(",") || valor.contains("\"") || valor.contains("\n")) {
+            return "\"" + valor.replace("\"", "\"\"") + "\"";
         }
-
-        // Recursivamente guardar subdirectorios
-        Lista<Directorio> subdirs = dir.getSubdirectorios();
-        for (int i = 0; i < subdirs.getSize(); i++) {
-            guardarDirectorioRecursivo(writer, subdirs.get(i), rutaActual);
-        }
+        return valor;
     }
 
     /**
-     * Carga el estado del sistema desde un archivo
+     * Carga los procesos desde un archivo CSV
      */
-    public static boolean cargarSistema(GestorArchivos gestor, String rutaArchivo) {
+    public static boolean cargarProcesos(GestorProcesos gestorProcesos, String rutaArchivo) {
         File archivo = new File(rutaArchivo);
         if (!archivo.exists()) {
-            System.out.println("Archivo de sistema no encontrado: " + rutaArchivo);
+            System.out.println("Archivo de procesos no encontrado: " + rutaArchivo);
             return false;
         }
 
         try (BufferedReader reader = new BufferedReader(new FileReader(rutaArchivo))) {
-            SimuladorDisco disco = gestor.getDisco();
-            disco.reiniciar();
+            // Limpiar el gestor antes de cargar
+            gestorProcesos.limpiarTodo();
+
+            // Mapa temporal para asociar procesos por ID
+            Lista<Proceso> procesosTemp = new Lista<>();
 
             String linea;
             String seccionActual = "";
+            boolean saltarEncabezado = false;
+
+            int posicionCabeza = 0;
 
             while ((linea = reader.readLine()) != null) {
                 linea = linea.trim();
 
                 if (linea.startsWith("===")) {
-                    if (linea.contains("DISCO")) {
-                        seccionActual = "DISCO";
-                        // Leer posición de cabeza
-                        String cabeza = reader.readLine();
-                        if (cabeza != null) {
-                            disco.setCabezaActual(Integer.parseInt(cabeza.trim()));
-                        }
-                    } else if (linea.contains("BLOQUES")) {
-                        seccionActual = "BLOQUES";
-                    } else if (linea.contains("DIRECTORIOS")) {
-                        seccionActual = "DIRECTORIOS";
+                    if (linea.contains("INFO")) {
+                        seccionActual = "INFO";
+                    } else if (linea.contains("PROCESOS") && !linea.contains("FIN")) {
+                        seccionActual = "PROCESOS";
+                        saltarEncabezado = true;
+                    } else if (linea.contains("SOLICITUDES_PENDIENTES")) {
+                        seccionActual = "SOLICITUDES_PENDIENTES";
+                        saltarEncabezado = true;
+                    } else if (linea.contains("SOLICITUDES_ATENDIDAS")) {
+                        seccionActual = "SOLICITUDES_ATENDIDAS";
+                        saltarEncabezado = true;
                     }
                     continue;
                 }
@@ -136,148 +152,169 @@ public class GestorPersistencia {
                     continue;
                 }
 
+                // Saltar encabezados CSV
+                if (saltarEncabezado) {
+                    saltarEncabezado = false;
+                    continue;
+                }
+
                 // Procesar según la sección
                 switch (seccionActual) {
-                    case "BLOQUES":
-                        cargarBloque(disco, linea);
+                    case "INFO":
+                        String[] infoParts = linea.split(",");
+                        if (infoParts.length >= 2) {
+                            if (infoParts[0].equals("posicionCabeza")) {
+                                posicionCabeza = Integer.parseInt(infoParts[1]);
+                            }
+                            // Las estadísticas se recalculan automáticamente
+                        }
                         break;
-                    case "DIRECTORIOS":
-                        cargarElementoDirectorio(gestor, linea);
+
+                    case "PROCESOS":
+                        Proceso proceso = cargarProceso(linea);
+                        if (proceso != null) {
+                            procesosTemp.insertarFinal(proceso);
+                            gestorProcesos.agregarProcesoDirecto(proceso);
+                        }
+                        break;
+
+                    case "SOLICITUDES_PENDIENTES":
+                        cargarSolicitud(linea, procesosTemp, gestorProcesos, false);
+                        break;
+
+                    case "SOLICITUDES_ATENDIDAS":
+                        cargarSolicitud(linea, procesosTemp, gestorProcesos, true);
                         break;
                 }
             }
 
+            gestorProcesos.setPosicionCabeza(posicionCabeza);
             return true;
 
         } catch (IOException e) {
-            System.err.println("Error al cargar el sistema: " + e.getMessage());
+            System.err.println("Error al cargar procesos: " + e.getMessage());
             return false;
-        } catch (NumberFormatException e) {
+        } catch (Exception e) {
             System.err.println("Error en formato de datos: " + e.getMessage());
             return false;
         }
     }
 
     /**
-     * Carga un bloque desde una línea de texto
+     * Parsea una línea CSV manejando valores entre comillas
      */
-    private static void cargarBloque(SimuladorDisco disco, String linea) {
-        String[] partes = linea.split("\\|\\|\\|");
-        if (partes.length >= 7) {
-            int id = Integer.parseInt(partes[0]);
-            boolean ocupado = Boolean.parseBoolean(partes[1]);
-            int siguiente = Integer.parseInt(partes[2]);
-            String archivoAsociado = partes[3].equals("null") ? null : partes[3];
-            int r = Integer.parseInt(partes[4]);
-            int g = Integer.parseInt(partes[5]);
-            int b = Integer.parseInt(partes[6]);
+    private static String[] parsearCSV(String linea) {
+        Lista<String> valores = new Lista<>();
+        StringBuilder valorActual = new StringBuilder();
+        boolean dentroComillas = false;
 
-            Bloque bloque = disco.getBloque(id);
-            if (bloque != null) {
-                bloque.setOcupado(ocupado);
-                bloque.setSiguienteBloque(siguiente);
-                bloque.setArchivoAsociado(archivoAsociado);
-                bloque.setColor(new java.awt.Color(r, g, b));
+        for (int i = 0; i < linea.length(); i++) {
+            char c = linea.charAt(i);
+
+            if (c == '"') {
+                if (dentroComillas && i + 1 < linea.length() && linea.charAt(i + 1) == '"') {
+                    valorActual.append('"');
+                    i++;
+                } else {
+                    dentroComillas = !dentroComillas;
+                }
+            } else if (c == ',' && !dentroComillas) {
+                valores.insertarFinal(valorActual.toString());
+                valorActual = new StringBuilder();
+            } else {
+                valorActual.append(c);
             }
         }
+        valores.insertarFinal(valorActual.toString());
+
+        String[] resultado = new String[valores.getSize()];
+        for (int i = 0; i < valores.getSize(); i++) {
+            resultado[i] = valores.get(i);
+        }
+        return resultado;
     }
 
     /**
-     * Carga un elemento (directorio o archivo) desde una línea de texto
+     * Carga un proceso desde una línea CSV
      */
-    private static void cargarElementoDirectorio(GestorArchivos gestor, String linea) {
-        String[] partes = linea.split("\\|\\|\\|");
-
-        if (partes.length < 2)
-            return;
-
-        String tipo = partes[0];
-        String ruta = partes[1];
-
-        if (tipo.equals("DIR") && partes.length >= 4) {
-            String nombre = partes[2];
-            String propietario = partes[3];
-
-            // No crear el root, ya existe
-            if (!nombre.equals("root")) {
-                navegarARuta(gestor, obtenerRutaPadre(ruta));
-                gestor.setModoAdministrador(true);
-                gestor.crearDirectorio(nombre);
-            }
-
-        } else if (tipo.equals("FILE") && partes.length >= 10) {
-            String nombre = partes[2];
-            int tamano = Integer.parseInt(partes[3]);
-            int primerBloque = Integer.parseInt(partes[4]);
+    private static Proceso cargarProceso(String linea) {
+        String[] partes = parsearCSV(linea);
+        // id,nombre,estado,operacion,archivoObjetivo,propietario,tamanoEnBloques,operacionEjecutada
+        if (partes.length >= 8) {
+            // partes[0] es el ID original (no se usa, el proceso genera uno nuevo)
+            String nombre = partes[1];
+            // partes[2] es el estado guardado (ignoramos, siempre será BLOQUEADO)
+            Proceso.TipoOperacion operacion = Proceso.TipoOperacion.valueOf(partes[3]);
+            String archivoObjetivo = partes[4];
             String propietario = partes[5];
-            boolean esPublico = Boolean.parseBoolean(partes[6]);
-            int r = Integer.parseInt(partes[7]);
-            int g = Integer.parseInt(partes[8]);
-            int b = Integer.parseInt(partes[9]);
+            int tamanoEnBloques = Integer.parseInt(partes[6]);
+            // partes[7] es operacionEjecutada guardado (ignoramos, siempre será false)
 
-            // Navegar al directorio padre y crear el archivo
-            navegarARuta(gestor, ruta);
+            Proceso proceso = new Proceso(nombre, operacion, archivoObjetivo, propietario);
+            // Forzar estado BLOQUEADO y operacionEjecutada=false para re-ejecución
+            proceso.setEstado(Proceso.Estado.BLOQUEADO);
+            proceso.setTamanoEnBloques(tamanoEnBloques);
+            proceso.setOperacionEjecutada(false);
 
-            // Crear archivo manualmente (los bloques ya están asignados)
-            Archivo archivo = new Archivo(nombre, tamano, propietario);
-            archivo.setPrimerBloque(primerBloque);
-            archivo.setEsPublico(esPublico);
-            archivo.setColor(new java.awt.Color(r, g, b));
-            gestor.getDirectorioActual().agregarArchivo(archivo);
+            return proceso;
         }
+        return null;
     }
 
     /**
-     * Navega a una ruta específica en el sistema de archivos
+     * Carga una solicitud desde una línea CSV
      */
-    private static void navegarARuta(GestorArchivos gestor, String ruta) {
-        gestor.irARaiz();
-        if (ruta == null || ruta.isEmpty() || ruta.equals("root")) {
-            return;
-        }
+    private static void cargarSolicitud(String linea, Lista<Proceso> procesos,
+            GestorProcesos gestorProcesos, boolean esAtendida) {
+        String[] partes = parsearCSV(linea);
+        // id,procesoId,bloqueDestino,tipoOperacion,atendida
+        if (partes.length >= 5) {
+            int procesoId = Integer.parseInt(partes[1]);
+            int bloqueDestino = Integer.parseInt(partes[2]);
+            Proceso.TipoOperacion tipoOperacion = Proceso.TipoOperacion.valueOf(partes[3]);
 
-        String[] partes = ruta.split("/");
-        for (int i = 1; i < partes.length; i++) { // Empezar en 1 para saltar "root"
-            if (!partes[i].isEmpty()) {
-                gestor.entrarDirectorio(partes[i]);
+            // Buscar el proceso correspondiente
+            Proceso proceso = null;
+            for (int i = 0; i < procesos.getSize(); i++) {
+                if (procesos.get(i).getId() == procesoId) {
+                    proceso = procesos.get(i);
+                    break;
+                }
+            }
+
+            if (proceso != null) {
+                if (esAtendida) {
+                    gestorProcesos.agregarSolicitudAtendidaDirecta(proceso, bloqueDestino, tipoOperacion);
+                } else {
+                    gestorProcesos.agregarSolicitudES(proceso, bloqueDestino, tipoOperacion);
+                }
             }
         }
     }
 
     /**
-     * Obtiene la ruta del directorio padre
+     * Guarda los procesos en la ubicación por defecto
      */
-    private static String obtenerRutaPadre(String ruta) {
-        int ultimoSlash = ruta.lastIndexOf('/');
-        if (ultimoSlash <= 0) {
-            return "root";
-        }
-        return ruta.substring(0, ultimoSlash);
+    public static boolean guardarProcesos(GestorProcesos gestorProcesos) {
+        return guardarProcesos(gestorProcesos, ARCHIVO_PROCESOS);
     }
 
     /**
-     * Guarda el sistema en la ubicación por defecto
+     * Carga los procesos desde la ubicación por defecto
      */
-    public static boolean guardarSistema(GestorArchivos gestor) {
-        return guardarSistema(gestor, ARCHIVO_SISTEMA);
+    public static boolean cargarProcesos(GestorProcesos gestorProcesos) {
+        return cargarProcesos(gestorProcesos, ARCHIVO_PROCESOS);
     }
 
     /**
-     * Carga el sistema desde la ubicación por defecto
-     */
-    public static boolean cargarSistema(GestorArchivos gestor) {
-        return cargarSistema(gestor, ARCHIVO_SISTEMA);
-    }
-
-    /**
-     * Verifica si existe un archivo de sistema guardado
+     * Verifica si existe un archivo de procesos guardado
      */
     public static boolean existeArchivoGuardado() {
-        return new File(ARCHIVO_SISTEMA).exists();
+        return new File(ARCHIVO_PROCESOS).exists();
     }
 
     /**
-     * Verifica si existe un archivo de sistema guardado en una ruta específica
+     * Verifica si existe un archivo de procesos en una ruta específica
      */
     public static boolean existeArchivoGuardado(String ruta) {
         return new File(ruta).exists();

@@ -57,7 +57,7 @@ public class Lista<T> {
 
     public void vaciar() {
         this.Head = null;
-        this.Tail = null; 
+        this.Tail = null;
         this.size = 0;
     }
 
@@ -89,30 +89,35 @@ public class Lista<T> {
 
     // Metodo de insertar un valor por una posicion
     public void insertarPosicion(int posicion, Object valor) {
-        if (posicion >= 0 && posicion < size) {
-            Nodo nuevo = new Nodo(valor);
-            if (posicion == 0) {
-                nuevo.setNext(Head);
-                Head = nuevo;
-            } else {
-                if (posicion == size - 1) {
-                    Nodo aux = Head;
-                    while (aux.getNext() != null) {
-                        aux = aux.getNext();
-                    }
-                    aux.setNext(nuevo);
-                } else {
-                    Nodo aux = Head;
-                    for (int i = 0; i < (posicion - 1); i++) {
-                        aux = aux.getNext();
-                    }
-                    Nodo siguiente = aux.getNext();
-                    aux.setNext(nuevo);
-                    nuevo.setNext(siguiente);
-                }
-            }
-            size++;
+        if (posicion < 0 || posicion > size) {
+            return; // Posición inválida
         }
+
+        // Si es al inicio, usar insertBegin
+        if (posicion == 0) {
+            insertBegin(valor);
+            return;
+        }
+
+        // Si es al final, usar insertarFinal
+        if (posicion == size) {
+            insertarFinal(valor);
+            return;
+        }
+
+        // Inserción en el medio
+        Nodo<T> nuevo = new Nodo<>((T) valor);
+        Nodo<T> anterior = getNodeAt(posicion - 1);
+        Nodo<T> siguiente = anterior.getNext();
+
+        anterior.setNext(nuevo);
+        nuevo.setPrevious(anterior);
+        nuevo.setNext(siguiente);
+        if (siguiente != null) {
+            siguiente.setPrevious(nuevo);
+        }
+
+        size++;
     }
 
     public T get(int index) {

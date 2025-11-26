@@ -36,6 +36,7 @@ public class Proceso {
     private long tiempoFin; // Cuando terminó
     private int tamanoEnBloques; // Para operaciones CREAR, cuántos bloques asignar
     private boolean operacionEjecutada; // Si ya se ejecutó la operación real
+    private Directorio directorioDestino; // Directorio donde se creará el archivo (para CREAR)
 
     public Proceso(String nombre, TipoOperacion operacion, String archivoObjetivo, String propietario) {
         this.id = ++contadorId;
@@ -153,6 +154,14 @@ public class Proceso {
 
     public void setOperacionEjecutada(boolean operacionEjecutada) {
         this.operacionEjecutada = operacionEjecutada;
+    }
+
+    public Directorio getDirectorioDestino() {
+        return directorioDestino;
+    }
+
+    public void setDirectorioDestino(Directorio directorioDestino) {
+        this.directorioDestino = directorioDestino;
     }
 
     public static void resetContador() {
