@@ -47,7 +47,8 @@ public class VentanaPrincipal extends javax.swing.JFrame {
      */
     public VentanaPrincipal() {
         initComponents();
-        
+        inicializarSistema();
+        //actualizarTodo();
     }
 
     /**
@@ -609,6 +610,7 @@ public class VentanaPrincipal extends javax.swing.JFrame {
     }//GEN-LAST:event_comboPlanificadorActionPerformed
 
     private void btnCrearDirectorioActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnCrearDirectorioActionPerformed
+        mostrarDialogoCrearDirectorio();
     }//GEN-LAST:event_btnCrearDirectorioActionPerformed
 
     private void btnSimularActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnSimularActionPerformed
@@ -628,34 +630,212 @@ public class VentanaPrincipal extends javax.swing.JFrame {
     }//GEN-LAST:event_sliderVelocidadStateChanged
 
     private void btnGuardarActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnGuardarActionPerformed
+         
     }//GEN-LAST:event_btnGuardarActionPerformed
 
     private void btnCargarActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnCargarActionPerformed
+         
     }//GEN-LAST:event_btnCargarActionPerformed
 
     private void btnLimpiarActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnLimpiarActionPerformed
+       
     }//GEN-LAST:event_btnLimpiarActionPerformed
 
     private void treeArchivosValueChanged(javax.swing.event.TreeSelectionEvent evt) {//GEN-FIRST:event_treeArchivosValueChanged
+        
     }//GEN-LAST:event_treeArchivosValueChanged
 
     private void menuCrearArchivoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_menuCrearArchivoActionPerformed
+        
     }//GEN-LAST:event_menuCrearArchivoActionPerformed
 
     private void menuCrearDirActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_menuCrearDirActionPerformed
+       
     }//GEN-LAST:event_menuCrearDirActionPerformed
 
     private void menuEliminarActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_menuEliminarActionPerformed
+       
     }//GEN-LAST:event_menuEliminarActionPerformed
 
     private void menuRenombrarActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_menuRenombrarActionPerformed
+        
     }//GEN-LAST:event_menuRenombrarActionPerformed
 
     private void btnCrearProcesoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnCrearProcesoActionPerformed
+        
     }//GEN-LAST:event_btnCrearProcesoActionPerformed
 
     private void btnCrear10ProcesosActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnCrear10ProcesosActionPerformed
+        
     }//GEN-LAST:event_btnCrear10ProcesosActionPerformed
+
+
+    
+    private void inicializarSistema() {
+        disco = new SimuladorDisco();
+        gestorArchivos = new GestorArchivos(disco);
+        gestorProcesos = new GestorProcesos();
+        
+        gestorProcesos.configurarSistemaArchivos(gestorArchivos, disco);
+        
+        planificadores = new PlanificadorDisco[] {
+            new FIFO(),
+            new SSTF(),
+            new SCAN(),
+            new CSCAN()
+        };
+    }
+    
+
+    
+    private void mostrarDialogoCrearArchivo() {
+        if (!gestorArchivos.isModoAdministrador()) {
+            JOptionPane.showMessageDialog(this, "Solo administradores pueden crear archivos",
+                    "Acceso Denegado", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        JPanel panel = new JPanel(new GridLayout(2, 2, 5, 5));
+        JTextField txtNombre = new JTextField();
+        JSpinner spnBloques = new JSpinner(new SpinnerNumberModel(1, 1, 50, 1));
+
+        panel.add(new JLabel("Nombre del archivo:"));
+        panel.add(txtNombre);
+        panel.add(new JLabel("Tamaño (bloques):"));
+        panel.add(spnBloques);
+
+        int result = JOptionPane.showConfirmDialog(this, panel, "Crear Archivo",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+
+        if (result == JOptionPane.OK_OPTION && !txtNombre.getText().trim().isEmpty()) {
+            navegarADirectorioSeleccionado();
+            boolean exito = gestorArchivos.crearArchivo(txtNombre.getText().trim(),
+                    (Integer) spnBloques.getValue());
+            if (exito) {
+                //actualizarTodo();
+            } else {
+                JOptionPane.showMessageDialog(this, "No se pudo crear el archivo",
+                        "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void mostrarDialogoCrearDirectorio() {
+        if (!gestorArchivos.isModoAdministrador()) {
+            JOptionPane.showMessageDialog(this, "Solo administradores pueden crear directorios",
+                    "Acceso Denegado", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        String nombre = JOptionPane.showInputDialog(this, "Nombre del directorio:",
+                "Crear Directorio", JOptionPane.PLAIN_MESSAGE);
+
+        if (nombre != null && !nombre.trim().isEmpty()) {
+            navegarADirectorioSeleccionado();
+            boolean exito = gestorArchivos.crearDirectorio(nombre.trim());
+            if (exito) {
+                //actualizarTodo();
+            } else {
+                JOptionPane.showMessageDialog(this, "No se pudo crear el directorio",
+                        "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void eliminarSeleccionado() {
+        if (!gestorArchivos.isModoAdministrador()) {
+            JOptionPane.showMessageDialog(this, "Solo administradores pueden eliminar",
+                    "Acceso Denegado", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        TreePath path = treeArchivos.getSelectionPath();
+        if (path == null || path.getPathCount() <= 1) {
+            JOptionPane.showMessageDialog(this, "Seleccione un elemento para eliminar",
+                    "Aviso", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        DefaultMutableTreeNode nodo = (DefaultMutableTreeNode) path.getLastPathComponent();
+        Object objeto = nodo.getUserObject();
+
+        int confirmacion = JOptionPane.showConfirmDialog(this,
+                "¿Está seguro de eliminar '" + objeto + "'?",
+                "Confirmar Eliminación", JOptionPane.YES_NO_OPTION);
+
+        if (confirmacion == JOptionPane.YES_OPTION) {
+            navegarADirectorioPadreSeleccionado();
+
+            if (objeto instanceof Archivo) {
+                gestorArchivos.eliminarArchivo(((Archivo) objeto).getNombre());
+            } else if (objeto instanceof Directorio) {
+                gestorArchivos.eliminarDirectorio(((Directorio) objeto).getNombre());
+            }
+
+            //actualizarTodo();
+        }
+    }
+
+    private void renombrarSeleccionado() {
+        if (!gestorArchivos.isModoAdministrador()) {
+            JOptionPane.showMessageDialog(this, "Solo administradores pueden renombrar",
+                    "Acceso Denegado", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        TreePath path = treeArchivos.getSelectionPath();
+        if (path == null || path.getPathCount() <= 1) {
+            return;
+        }
+
+        DefaultMutableTreeNode nodo = (DefaultMutableTreeNode) path.getLastPathComponent();
+        Object objeto = nodo.getUserObject();
+
+        String nombreActual = objeto.toString();
+        String nuevoNombre = JOptionPane.showInputDialog(this, "Nuevo nombre:", nombreActual);
+
+        if (nuevoNombre != null && !nuevoNombre.trim().isEmpty()) {
+            navegarADirectorioPadreSeleccionado();
+
+            if (objeto instanceof Archivo) {
+                gestorArchivos.renombrarArchivo(nombreActual, nuevoNombre.trim());
+            } else if (objeto instanceof Directorio) {
+                gestorArchivos.renombrarDirectorio(nombreActual, nuevoNombre.trim());
+            }
+
+            //actualizarTodo();
+        }
+    }
+
+    private void navegarADirectorioSeleccionado() {
+        TreePath path = treeArchivos.getSelectionPath();
+        gestorArchivos.irARaiz();
+
+        if (path != null) {
+            for (int i = 1; i < path.getPathCount(); i++) {
+                DefaultMutableTreeNode nodo = (DefaultMutableTreeNode) path.getPathComponent(i);
+                Object obj = nodo.getUserObject();
+                if (obj instanceof Directorio) {
+                    gestorArchivos.entrarDirectorio(((Directorio) obj).getNombre());
+                }
+            }
+        }
+    }
+
+    private void navegarADirectorioPadreSeleccionado() {
+        TreePath path = treeArchivos.getSelectionPath();
+        gestorArchivos.irARaiz();
+
+        if (path != null && path.getPathCount() > 2) {
+            for (int i = 1; i < path.getPathCount() - 1; i++) {
+                DefaultMutableTreeNode nodo = (DefaultMutableTreeNode) path.getPathComponent(i);
+                Object obj = nodo.getUserObject();
+                if (obj instanceof Directorio) {
+                    gestorArchivos.entrarDirectorio(((Directorio) obj).getNombre());
+                }
+            }
+        }
+    }
 
     
 
