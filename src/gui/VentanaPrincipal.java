@@ -837,7 +837,324 @@ public class VentanaPrincipal extends javax.swing.JFrame {
         }
     }
 
+    private void mostrarInfoSeleccionado() {
+        TreePath path = treeArchivos.getSelectionPath();
+
+        if (path == null) {
+            lblInfoNombre.setText("Seleccione un elemento");
+            lblInfoTipo.setText("");
+            lblInfoUbicacion.setText("");
+            lblInfoDetalles1.setText("");
+            lblInfoDetalles2.setText("");
+            lblInfoCadenaBLK.setText("");
+            return;
+        }
+
+        StringBuilder ubicacion = new StringBuilder();
+        for (int i = 0; i < path.getPathCount() - 1; i++) {
+            DefaultMutableTreeNode nodoPath = (DefaultMutableTreeNode) path.getPathComponent(i);
+            Object obj = nodoPath.getUserObject();
+            if (obj instanceof Directorio) {
+                Directorio d = (Directorio) obj;
+                if (i == 0) {
+                    ubicacion.append("/");
+                } else {
+                    ubicacion.append(d.getNombre()).append("/");
+                }
+            }
+        }
+        if (ubicacion.length() == 0) {
+            ubicacion.append("/");
+        }
+
+        DefaultMutableTreeNode nodo = (DefaultMutableTreeNode) path.getLastPathComponent();
+        Object objeto = nodo.getUserObject();
+
+        if (objeto instanceof Archivo) {
+            Archivo archivo = (Archivo) objeto;
+            lblInfoNombre.setText("Nombre: " + archivo.getNombre());
+            lblInfoTipo.setText("Tipo: Archivo");
+            lblInfoUbicacion.setText("Ubicación: " + ubicacion.toString());
+            lblInfoDetalles1.setText("Bloques: " + archivo.getTamanoEnBloques() + " | Primer BLK: " + archivo.getPrimerBloque());
+            lblInfoDetalles2.setText("Propietario: " + archivo.getPropietario());
+            String cadenaBloques = obtenerCadenaBloques(archivo.getPrimerBloque());
+            lblInfoCadenaBLK.setText("Cadena: " + cadenaBloques);
+        } else if (objeto instanceof Directorio) {
+            Directorio dir = (Directorio) objeto;
+            int numArchivos = dir.getArchivos().getSize();
+            int numSubdirs = dir.getSubdirectorios().getSize();
+
+            lblInfoNombre.setText("Nombre: " + dir.getNombre());
+            lblInfoTipo.setText("Tipo: Directorio");
+            String rutaDir = ubicacion.toString();
+            if (path.getPathCount() > 1) {
+                rutaDir = ubicacion.toString() + dir.getNombre() + "/";
+            }
+            lblInfoUbicacion.setText("Ruta: " + rutaDir);
+            lblInfoDetalles1.setText("Archivos: " + numArchivos + " | Subdirectorios: " + numSubdirs);
+            lblInfoDetalles2.setText("Propietario: " + dir.getPropietario());
+            lblInfoCadenaBLK.setText("");
+        } else {
+            lblInfoNombre.setText("Seleccione un elemento");
+            lblInfoTipo.setText("");
+            lblInfoUbicacion.setText("");
+            lblInfoDetalles1.setText("");
+            lblInfoDetalles2.setText("");
+            lblInfoCadenaBLK.setText("");
+        }
+    }
+
+    private void mostrarDialogoCrearProceso() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        String[] operaciones;
+        if (gestorArchivos.isModoAdministrador()) {
+            operaciones = new String[] {"CREAR", "LEER", "ACTUALIZAR", "ELIMINAR"};
+        } else {
+            operaciones = new String[] {"LEER"};
+        }
+        
+        gbc.gridx = 0; gbc.gridy = 0;
+        panel.add(new JLabel("Operación:"), gbc);
+        JComboBox<String> comboOperacion = new JComboBox<>(operaciones);
+        gbc.gridx = 1; gbc.gridy = 0;
+        panel.add(comboOperacion, gbc);
+
+        gbc.gridx = 0; gbc.gridy = 1;
+        JLabel lblArchivo = new JLabel("Archivo:");
+        panel.add(lblArchivo, gbc);
+
+        Lista<Archivo> archivos = gestorArchivos.obtenerTodosLosArchivos();
+        String[] nombresArchivos = new String[archivos.getSize()];
+        for (int i = 0; i < archivos.getSize(); i++) {
+            nombresArchivos[i] = archivos.get(i).getNombre();
+        }
+        JComboBox<String> comboArchivo = new JComboBox<>(nombresArchivos);
+        gbc.gridx = 1; gbc.gridy = 1;
+        panel.add(comboArchivo, gbc);
+
+        gbc.gridx = 0; gbc.gridy = 2;
+        JLabel lblNombreNuevo = new JLabel("Nombre archivo:");
+        panel.add(lblNombreNuevo, gbc);
+        JTextField txtNombreArchivo = new JTextField("Archivo_" + System.currentTimeMillis() % 10000, 15);
+        gbc.gridx = 1; gbc.gridy = 2;
+        panel.add(txtNombreArchivo, gbc);
+
+        gbc.gridx = 0; gbc.gridy = 3;
+        JLabel lblBloques = new JLabel("Bloques:");
+        panel.add(lblBloques, gbc);
+        JSpinner spinnerBloques = new JSpinner(new SpinnerNumberModel(5, 1, 50, 1));
+        gbc.gridx = 1; gbc.gridy = 3;
+        panel.add(spinnerBloques, gbc);
+
+        gbc.gridx = 0; gbc.gridy = 4; gbc.gridwidth = 1;
+        JLabel lblDirectorio = new JLabel("Directorio destino:");
+        panel.add(lblDirectorio, gbc);
+
+        Lista<Directorio> directorios = gestorArchivos.obtenerTodosLosDirectorios();
+        String[] nombresDirectorios = new String[directorios.getSize()];
+        for (int i = 0; i < directorios.getSize(); i++) {
+            Directorio dir = directorios.get(i);
+            if (dir == gestorArchivos.getRaiz()) {
+                nombresDirectorios[i] = "/ (raíz)";
+            } else {
+                nombresDirectorios[i] = dir.getNombre();
+            }
+        }
+        JComboBox<String> comboDirectorio = new JComboBox<>(nombresDirectorios);
+        gbc.gridx = 1; gbc.gridy = 4;
+        panel.add(comboDirectorio, gbc);
+
+        gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 2;
+        JCheckBox chkAutoSimular = new JCheckBox("Iniciar simulación automáticamente", true);
+        panel.add(chkAutoSimular, gbc);
+
+        comboOperacion.addActionListener(e -> {
+            String op = (String) comboOperacion.getSelectedItem();
+            boolean esCrear = "CREAR".equals(op);
+
+            lblArchivo.setVisible(!esCrear);
+            comboArchivo.setVisible(!esCrear);
+            lblNombreNuevo.setVisible(esCrear);
+            txtNombreArchivo.setVisible(esCrear);
+            lblBloques.setVisible(esCrear);
+            spinnerBloques.setVisible(esCrear);
+            lblDirectorio.setVisible(esCrear);
+            comboDirectorio.setVisible(esCrear);
+
+            panel.revalidate();
+            panel.repaint();
+        });
+
+        if (gestorArchivos.isModoAdministrador()) {
+            lblArchivo.setVisible(false);
+            comboArchivo.setVisible(false);
+            lblDirectorio.setVisible(true);
+            comboDirectorio.setVisible(true);
+        } else {
+            lblArchivo.setVisible(true);
+            comboArchivo.setVisible(true);
+            lblNombreNuevo.setVisible(false);
+            txtNombreArchivo.setVisible(false);
+            lblBloques.setVisible(false);
+            spinnerBloques.setVisible(false);
+            lblDirectorio.setVisible(false);
+            comboDirectorio.setVisible(false);
+        }
+
+        int result = JOptionPane.showConfirmDialog(this, panel, "Crear Proceso",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+
+        if (result == JOptionPane.OK_OPTION) {
+            String opSeleccionada = (String) comboOperacion.getSelectedItem();
+            Proceso.TipoOperacion tipoOp = Proceso.TipoOperacion.valueOf(opSeleccionada);
+
+            if (tipoOp == Proceso.TipoOperacion.CREAR) {
+                int dirIndex = comboDirectorio.getSelectedIndex();
+                Directorio dirDestino = directorios.get(dirIndex);
+                crearProcesoCrear(txtNombreArchivo.getText().trim(),
+                        (Integer) spinnerBloques.getValue(),
+                        dirDestino,
+                        chkAutoSimular.isSelected());
+            } else {
+                if (comboArchivo.getSelectedItem() == null) {
+                    JOptionPane.showMessageDialog(this,
+                            "No hay archivos disponibles para esta operación.",
+                            "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                crearProcesoSobreArchivo((String) comboArchivo.getSelectedItem(),
+                        tipoOp,
+                        chkAutoSimular.isSelected());
+            }
+        }
+    }
+
+    private void crearProcesoCrear(String nombreArchivo, int tamano, Directorio directorioDestino,
+            boolean autoSimular) {
+        if (nombreArchivo.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "El nombre del archivo no puede estar vacío.",
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        if (!disco.hayEspacio(tamano)) {
+            JOptionPane.showMessageDialog(this,
+                    "No hay suficiente espacio en disco para crear el archivo.",
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        String errorValidacion = gestorProcesos.validarOperacionArchivo(nombreArchivo, Proceso.TipoOperacion.CREAR);
+        if (errorValidacion != null) {
+            JOptionPane.showMessageDialog(this, errorValidacion, "Operación no permitida",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        Lista<Integer> bloquesLibres = disco.obtenerProximosBloquesLibres(tamano);
+        if (bloquesLibres == null || bloquesLibres.getSize() < tamano) {
+            JOptionPane.showMessageDialog(this,
+                    "No se pudieron obtener los bloques necesarios.",
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        Proceso proceso = gestorProcesos.crearProceso(
+                "Crear_" + nombreArchivo,
+                Proceso.TipoOperacion.CREAR,
+                nombreArchivo,
+                gestorArchivos.getUsuarioActual());
+
+        proceso.setTamanoEnBloques(tamano);
+        proceso.setDirectorioDestino(directorioDestino);
+
+        for (int i = 0; i < bloquesLibres.getSize(); i++) {
+            int bloqueReal = bloquesLibres.get(i);
+            gestorProcesos.agregarSolicitudES(proceso, bloqueReal, Proceso.TipoOperacion.CREAR);
+        }
+
+        //actualizarTodo();
+
+
+        String nombreDir = (directorioDestino == gestorArchivos.getRaiz()) ? "/ (raíz)" : directorioDestino.getNombre();
+        JOptionPane.showMessageDialog(this,
+                "Proceso CREAR creado para: " + nombreArchivo + " (" + tamano + " bloques)\n" +
+                        "Directorio destino: " + nombreDir + "\n" +
+                        "Bloques asignados: " + bloquesToString(bloquesLibres),
+                "Proceso Creado", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void crearProcesoSobreArchivo(String nombreArchivo, Proceso.TipoOperacion operacion, boolean autoSimular) {
+        String errorValidacion = gestorProcesos.validarOperacionArchivo(nombreArchivo, operacion);
+        if (errorValidacion != null) {
+            JOptionPane.showMessageDialog(this, errorValidacion, "Operación no permitida",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        Archivo archivo = gestorArchivos.buscarArchivoEnSistema(nombreArchivo);
+        if (archivo == null) {
+            JOptionPane.showMessageDialog(this, "No se encontró el archivo: " + nombreArchivo,
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        Lista<Integer> bloques = disco.obtenerCadenaBloquesArchivo(archivo.getPrimerBloque());
+
+        String nombreProceso;
+        String mensaje;
+        switch (operacion) {
+            case LEER:
+                nombreProceso = "Leer_" + archivo.getNombre();
+                mensaje = "Proceso LEER creado para: " + archivo.getNombre();
+                break;
+            case ACTUALIZAR:
+                nombreProceso = "Actualizar_" + archivo.getNombre();
+                mensaje = "Proceso ACTUALIZAR creado para: " + archivo.getNombre();
+                break;
+            case ELIMINAR:
+                nombreProceso = "Eliminar_" + archivo.getNombre();
+                mensaje = "Proceso ELIMINAR creado para: " + archivo.getNombre();
+                break;
+            default:
+                nombreProceso = "Op_" + archivo.getNombre();
+                mensaje = "Proceso creado para: " + archivo.getNombre();
+        }
+
+        Proceso proceso = gestorProcesos.crearProceso(
+                nombreProceso,
+                operacion,
+                archivo.getNombre(),
+                gestorArchivos.getUsuarioActual());
+
+        gestorProcesos.agregarSolicitudesParaArchivo(proceso, bloques, operacion);
+
+        //actualizarTodo();
+
+        
+
+        JOptionPane.showMessageDialog(this, mensaje, "Proceso Creado", JOptionPane.INFORMATION_MESSAGE);
+    }
+
     
+
+    private String bloquesToString(Lista<Integer> bloques) {
+        if (bloques == null || bloques.isEmpty()) {
+            return "[]";
+        }
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < bloques.getSize(); i++) {
+            if (i > 0)
+                sb.append(", ");
+            sb.append(bloques.get(i));
+        }
+        sb.append("]");
+        return sb.toString();
+    }
 
     // ========== MAIN ==========
     
