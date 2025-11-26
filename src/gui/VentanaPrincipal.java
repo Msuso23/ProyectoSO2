@@ -1079,6 +1079,9 @@ public class VentanaPrincipal extends javax.swing.JFrame {
 
         //actualizarTodo();
 
+        if (autoSimular) {
+            iniciarSimulacionAutomatica();
+        }
 
         String nombreDir = (directorioDestino == gestorArchivos.getRaiz()) ? "/ (raíz)" : directorioDestino.getNombre();
         JOptionPane.showMessageDialog(this,
@@ -1135,12 +1138,184 @@ public class VentanaPrincipal extends javax.swing.JFrame {
 
         //actualizarTodo();
 
-        
+        if (autoSimular) {
+            iniciarSimulacionAutomatica();
+        }
 
         JOptionPane.showMessageDialog(this, mensaje, "Proceso Creado", JOptionPane.INFORMATION_MESSAGE);
     }
 
-    
+    private void crearMultiplesProcesos(int cantidad) {
+        int procesosCreados = 0;
+        for (int i = 0; i < cantidad; i++) {
+            try {
+                crearProcesoPrueba(false);
+                procesosCreados++;
+                Thread.sleep(10);
+            } catch (Exception ex) {
+            }
+        }
+
+        //actualizarTodo();
+
+        if (procesosCreados > 0) {
+            iniciarSimulacionAutomatica();
+        }
+
+        JOptionPane.showMessageDialog(this,
+                procesosCreados + " procesos creados.\nSimulación iniciada automáticamente.",
+                "Procesos Creados", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void crearProcesoPrueba(boolean mostrarDialogos) {
+        Lista<Archivo> archivos = gestorArchivos.obtenerTodosLosArchivos();
+
+        if (gestorArchivos.isModoAdministrador() && Math.random() < 0.20) {
+            crearDirectorioAleatorio();
+        }
+
+        Proceso.TipoOperacion[] operaciones;
+        if (gestorArchivos.isModoAdministrador()) {
+            operaciones = new Proceso.TipoOperacion[] {
+                    Proceso.TipoOperacion.CREAR,
+                    Proceso.TipoOperacion.LEER,
+                    Proceso.TipoOperacion.ACTUALIZAR,
+                    Proceso.TipoOperacion.ELIMINAR
+            };
+        } else {
+            operaciones = new Proceso.TipoOperacion[] {
+                    Proceso.TipoOperacion.LEER
+            };
+        }
+
+        int opIndex = (int) (Math.random() * operaciones.length);
+        Proceso.TipoOperacion operacion = operaciones[opIndex];
+
+        if (operacion == Proceso.TipoOperacion.CREAR) {
+            Directorio directorioDestino = seleccionarDirectorioAleatorio();
+            String nombreArchivo = "Archivo_" + System.currentTimeMillis() % 10000;
+            int tamano = 3 + (int) (Math.random() * 6);
+
+            if (!disco.hayEspacio(tamano)) {
+                return;
+            }
+
+            String errorValidacion = gestorProcesos.validarOperacionArchivo(nombreArchivo, operacion);
+            if (errorValidacion != null) {
+                return;
+            }
+
+            Lista<Integer> bloquesLibres = disco.obtenerProximosBloquesLibres(tamano);
+            if (bloquesLibres == null || bloquesLibres.getSize() < tamano) {
+                return;
+            }
+
+            Directorio dirActualAnterior = gestorArchivos.getDirectorioActual();
+            gestorArchivos.setDirectorioActual(directorioDestino);
+
+            Proceso proceso = gestorProcesos.crearProceso(
+                    "Crear_" + nombreArchivo,
+                    Proceso.TipoOperacion.CREAR,
+                    nombreArchivo,
+                    gestorArchivos.getUsuarioActual());
+
+            proceso.setTamanoEnBloques(tamano);
+            proceso.setDirectorioDestino(directorioDestino);
+
+            for (int i = 0; i < bloquesLibres.getSize(); i++) {
+                int bloqueReal = bloquesLibres.get(i);
+                gestorProcesos.agregarSolicitudES(proceso, bloqueReal, Proceso.TipoOperacion.CREAR);
+            }
+
+            gestorArchivos.setDirectorioActual(dirActualAnterior);
+            return;
+        }
+
+        if (archivos.isEmpty()) {
+            return;
+        }
+
+        Lista<Archivo> archivosDisponibles = new Lista<>();
+        for (int i = 0; i < archivos.getSize(); i++) {
+            Archivo arch = archivos.get(i);
+            if (!gestorProcesos.hayEliminacionPendiente(arch.getNombre())) {
+                archivosDisponibles.insertarFinal(arch);
+            }
+        }
+
+        if (archivosDisponibles.isEmpty()) {
+            return;
+        }
+
+        int index = (int) (Math.random() * archivosDisponibles.getSize());
+        Archivo archivo = archivosDisponibles.get(index);
+
+        Lista<Integer> bloques = disco.obtenerCadenaBloquesArchivo(archivo.getPrimerBloque());
+
+        String nombreProceso;
+        switch (operacion) {
+            case LEER:
+                nombreProceso = "Leer_" + archivo.getNombre();
+                break;
+            case ACTUALIZAR:
+                nombreProceso = "Actualizar_" + archivo.getNombre();
+                break;
+            case ELIMINAR:
+                nombreProceso = "Eliminar_" + archivo.getNombre();
+                break;
+            default:
+                nombreProceso = "Op_" + archivo.getNombre();
+        }
+
+        Proceso proceso = gestorProcesos.crearProceso(
+                nombreProceso,
+                operacion,
+                archivo.getNombre(),
+                gestorArchivos.getUsuarioActual());
+
+        gestorProcesos.agregarSolicitudesParaArchivo(proceso, bloques, operacion);
+    }
+
+    private void crearDirectorioAleatorio() {
+        String[] nombresDirectorios = {"Documentos", "Imagenes", "Videos", "Musica", "Descargas",
+                "Proyectos", "Trabajo", "Personal", "Backup", "Temporal"};
+
+        String nombreBase = nombresDirectorios[(int) (Math.random() * nombresDirectorios.length)];
+        String nombreDir = nombreBase + "_" + (System.currentTimeMillis() % 1000);
+
+        Directorio dirPadre = seleccionarDirectorioAleatorio();
+
+        Directorio dirActualAnterior = gestorArchivos.getDirectorioActual();
+
+        gestorArchivos.setDirectorioActual(dirPadre);
+        boolean modoAnterior = gestorArchivos.isModoAdministrador();
+        gestorArchivos.setModoAdministrador(true);
+        gestorArchivos.crearDirectorio(nombreDir);
+        gestorArchivos.setModoAdministrador(modoAnterior);
+
+        gestorArchivos.setDirectorioActual(dirActualAnterior);
+
+        //actualizarArbol();
+    }
+
+    private Directorio seleccionarDirectorioAleatorio() {
+        Lista<Directorio> todosDirectorios = gestorArchivos.obtenerTodosLosDirectorios();
+
+        if (todosDirectorios.isEmpty()) {
+            return gestorArchivos.getRaiz();
+        }
+
+        int index = (int) (Math.random() * todosDirectorios.getSize());
+        return todosDirectorios.get(index);
+    }
+
+    private void iniciarSimulacionAutomatica() {
+        if (!simulacionActiva) {
+            simulacionActiva = true;
+            timerSimulacion.start();
+            btnSimular.setText("⏹ Detener");
+        }
+    }
 
     private String bloquesToString(Lista<Integer> bloques) {
         if (bloques == null || bloques.isEmpty()) {
